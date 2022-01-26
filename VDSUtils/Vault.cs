@@ -239,6 +239,52 @@ namespace VdsSampleUtilities
             return "FileNotFound";
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="conn">Current Vault Connection</param>
+        /// <param name="LocalPath">File or Folder path in local working folder</param>
+        /// <returns>Vault Folder Path; if LocalPath is a Filepath, the file's parent Folderpath returns</returns>
+        public string ConvertLocalPathToVaultPath(VDF.Vault.Currency.Connections.Connection conn, string LocalPath)
+        {
+            string mVaultPath = null;
+            string mWf = conn.WorkingFoldersManager.GetWorkingFolder("$/").FullPath;
+            if (LocalPath.Contains(mWf))
+            {
+                if (IsFilePath(LocalPath) == true)
+                {
+                    System.IO.FileInfo fileInfo = new System.IO.FileInfo(LocalPath);
+                    LocalPath = fileInfo.DirectoryName;
+                }
+                if (IsDirPath(LocalPath) == true)
+                {
+                    mVaultPath = LocalPath.Replace(mWf, "$/");
+                    mVaultPath = mVaultPath.Replace("\\", "/");
+                    return mVaultPath;
+                }
+                else
+                {
+                    return "Invalid local path";
+                }
+            }
+            else
+            {
+                return "Error: Local path outside of working folder";
+            }
+        }
+
+        private bool IsFilePath(string path)
+        {
+            if (System.IO.File.Exists(path)) return true;
+            return false;
+        }
+
+        private bool IsDirPath(string path)
+        {
+            if (System.IO.Directory.Exists(path)) return true;
+            return false;
+        }
+
     }
 
 
