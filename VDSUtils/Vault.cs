@@ -8,15 +8,14 @@ using Autodesk.Connectivity.WebServicesTools;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Entities;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.PersistentId;
+using Autodesk.DataManagement.Client.Framework.Vault.Currency.Properties;
+using ACW = Autodesk.Connectivity.WebServices;
 using VDF = Autodesk.DataManagement.Client.Framework;
 using ACET = Autodesk.Connectivity.Explorer.ExtensibilityTools;
 using Inventor;
 using AcInterop = Autodesk.AutoCAD.Interop;
 using AcInteropCom = Autodesk.AutoCAD.Interop.Common;
 
-/// <summary>
-/// VDS Sample Library to extend VDS scripting capabilities.
-/// </summary>
 namespace VdsSampleUtilities
 {
     /// <summary>
@@ -62,6 +61,56 @@ namespace VdsSampleUtilities
             return mCred;
         }
 
+
+        private List<ACW.SrchCond> CreateSrchConds(VDF.Vault.Currency.Connections.Connection conn, Dictionary<string, string> SearchCriteria, bool MatchAllCriteria)
+        {
+            ACW.PropDef[] mFilePropDefs = conn.WebServiceManager.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE");
+            //iterate mSearchcriteria to get property definitions and build AWS search criteria
+            List<ACW.SrchCond> mSrchConds = new List<ACW.SrchCond>();
+            int i = 0;
+            foreach (var item in SearchCriteria)
+            {
+                ACW.PropDef mFilePropDef = mFilePropDefs.Single(n => n.DispName == item.Key);
+                ACW.SrchCond mSearchCond = new ACW.SrchCond();
+                {
+                    mSearchCond.PropDefId = mFilePropDef.Id;
+                    mSearchCond.PropTyp = ACW.PropertySearchType.SingleProperty;
+                    mSearchCond.SrchOper = 3; //equals
+                    if (MatchAllCriteria) mSearchCond.SrchRule = ACW.SearchRuleType.Must;
+                    else mSearchCond.SrchRule = ACW.SearchRuleType.May;
+                    mSearchCond.SrchTxt = item.Value;
+                }
+                mSrchConds.Add(mSearchCond);
+                i++;
+            }
+            return mSrchConds;
+        }
+
+        private VDF.Vault.Settings.AcquireFilesSettings CreateAcquireSettings(VDF.Vault.Currency.Connections.Connection conn, bool CheckOut)
+        {
+            VDF.Vault.Settings.AcquireFilesSettings settings = new VDF.Vault.Settings.AcquireFilesSettings(conn);
+            if (CheckOut)
+            {
+                settings.DefaultAcquisitionOption = VDF.Vault.Settings.AcquireFilesSettings.AcquisitionOption.Checkout;
+            }
+            else
+            {
+                settings.DefaultAcquisitionOption = VDF.Vault.Settings.AcquireFilesSettings.AcquisitionOption.Download;
+                settings.OptionsRelationshipGathering.FileRelationshipSettings.IncludeChildren = true;
+                settings.OptionsRelationshipGathering.FileRelationshipSettings.RecurseChildren = true;
+                settings.OptionsRelationshipGathering.FileRelationshipSettings.IncludeAttachments = true;
+                settings.OptionsRelationshipGathering.FileRelationshipSettings.IncludeLibraryContents = true;
+                settings.OptionsRelationshipGathering.FileRelationshipSettings.ReleaseBiased = true;
+                settings.OptionsRelationshipGathering.FileRelationshipSettings.VersionGatheringOption = VDF.Vault.Currency.VersionGatheringOption.Revision;
+                settings.OptionsRelationshipGathering.IncludeLinksSettings.IncludeLinks = false;
+                VDF.Vault.Settings.AcquireFilesSettings.AcquireFileResolutionOptions mResOpt = new VDF.Vault.Settings.AcquireFilesSettings.AcquireFileResolutionOptions();
+                mResOpt.OverwriteOption = VDF.Vault.Settings.AcquireFilesSettings.AcquireFileResolutionOptions.OverwriteOptions.ForceOverwriteAll;
+                mResOpt.SyncWithRemoteSiteSetting = VDF.Vault.Settings.AcquireFilesSettings.SyncWithRemoteSite.Always;
+            }
+
+            return settings;
+        }
+
         /// <summary>
         /// Deprecated - no longer required, as the overload is removed in 2017 API
         /// </summary>
@@ -87,17 +136,17 @@ namespace VdsSampleUtilities
         /// LinkManager.GetLinkedChildren has an override list; the input is of type IEntity. 
         /// This wrapper allows to input commonly known object types, like Ids and entity names instead.
         /// </summary>
-        /// <param name="con">The utility dll is not connected to Vault; 
+        /// <param name="conn">The utility dll is not connected to Vault; 
         /// we need to leverage the established connection to call LinkManager methods</param>
         /// <param name="mId">The parent entity's id to get linked children of</param>
         /// <param name="mClsId">The parent entity's class name; allowed values are FILE FLDR and CUSTENT. 
         /// CO and ITEM cannot have linked children, as they use specific links to related child objects.</param>
         /// <param name="mFilter">Limit the search on links to a particular class; providing an empty value "" will result in a search on all types</param>
         /// <returns>List of entity Ids</returns>
-        public List<long> mGetLinkedChildren1(Connection con, long mId, string mClsId, string mFilter)
+        public List<long> mGetLinkedChildren1(Connection conn, long mId, string mClsId, string mFilter)
         {
             IEnumerable<PersistableIdEntInfo> mEntInfo = new PersistableIdEntInfo[] { new PersistableIdEntInfo(mClsId, mId, true, false) };
-            IDictionary<PersistableIdEntInfo, IEntity> mIEnts = con.EntityOperations.ConvertEntInfosToIEntities(mEntInfo);
+            IDictionary<PersistableIdEntInfo, IEntity> mIEnts = conn.EntityOperations.ConvertEntInfosToIEntities(mEntInfo);
             IEntity mIEnt = null;
             try
             {
@@ -105,7 +154,7 @@ namespace VdsSampleUtilities
                 {
                     mIEnt = item.Value;
                 }
-                IEnumerable<IEntity> mLinkedChldrn = con.LinkManager.GetLinkedChildren(mIEnt, mFilter);
+                IEnumerable<IEntity> mLinkedChldrn = conn.LinkManager.GetLinkedChildren(mIEnt, mFilter);
                 //return mLinkedChldrn;
                 List<long> mLinkedIds = new List<long>();
                 foreach (var item in mLinkedChldrn)
@@ -123,11 +172,11 @@ namespace VdsSampleUtilities
         /// <summary>
         /// Evaluation of overload 2; see mGetLinkedchildren1 for detailed description
         /// </summary>
-        /// <param name="con"></param>
+        /// <param name="conn"></param>
         /// <param name="mParEntIds"></param>
         /// <param name="mClsIds"></param>
         /// <returns></returns>
-        private IEnumerable<IEntity> GetLinkedChildren2(Connection con, long[] mParEntIds, string[] mClsIds)
+        private IEnumerable<IEntity> GetLinkedChildren2(Connection conn, long[] mParEntIds, string[] mClsIds)
         {
             List<PersistableIdEntInfo> mEntInfo = new List<PersistableIdEntInfo>();
             for (int i = 0; i < mParEntIds.Length; i++)
@@ -148,7 +197,7 @@ namespace VdsSampleUtilities
             //    mEntInfo.Add( new PersistableIdEntInfo(mClsIds[0], item.Id, true, false));
             //}
 
-            IDictionary<PersistableIdEntInfo, IEntity> mIEnts = con.EntityOperations.ConvertEntInfosToIEntities(mEntInfo.AsEnumerable());
+            IDictionary<PersistableIdEntInfo, IEntity> mIEnts = conn.EntityOperations.ConvertEntInfosToIEntities(mEntInfo.AsEnumerable());
             List<IEntity> mIEnt = new List<IEntity>();
             try
             {
@@ -156,7 +205,7 @@ namespace VdsSampleUtilities
                 {
                     mIEnt.Add(item.Value);
                 }
-                IEnumerable<IEntity> mLinkedChldrn = con.LinkManager.GetLinkedChildren(mIEnt.AsEnumerable(), mClsIds.AsEnumerable());
+                IEnumerable<IEntity> mLinkedChldrn = conn.LinkManager.GetLinkedChildren(mIEnt.AsEnumerable(), mClsIds.AsEnumerable());
                 return mLinkedChldrn;
             }
             catch
@@ -285,6 +334,156 @@ namespace VdsSampleUtilities
             return false;
         }
 
+        /// <summary>
+        /// Find 1 to many file(s) by 1 to many search criteria as property/value pairs. 
+        /// Downloads first file matching all or any search criterias. 
+        /// Preset Search Operator Options: [Property] is (exactly) [Value]; multiple conditions link up using AND condition.
+        /// Preset Download Options: Download Children (recursively) = Enabled, Enforce Overwrite = True
+        /// </summary>
+        /// <param name="conn">Current Vault Connection</param>
+        /// <param name="SearchCriteria">Dictionary of property/value pairs</param>
+        /// <param name="MatchAllCriteria">Optional. Switches AND/OR conditions using multiple criterias. Default is true</param>
+        /// <param name="CheckOut">Optional. File downloaded does NOT check-out as default</param>
+        /// <param name="FoldersSearched">Optional. Limit search scope to given folder path(s).</param>
+        /// <returns>Local path/filename</returns>
+        public string GetFileBySearchCriteria(VDF.Vault.Currency.Connections.Connection conn, Dictionary<string, string> SearchCriteria, bool MatchAllCriteria = true, bool CheckOut = false, string[] FoldersSearched = null)
+        {
+            //FoldersSearched: Inventor files are expected in IPJ registered path's only. In case of null use these:
+            ACW.Folder[] mFldr;
+            List<long> mFolders = new List<long>();
+            if (FoldersSearched != null)
+            {
+                mFldr = conn.WebServiceManager.DocumentService.FindFoldersByPaths(FoldersSearched);
+                foreach (ACW.Folder folder in mFldr)
+                {
+                    if (folder.Id != -1) mFolders.Add(folder.Id);
+                }
+            }
+
+            List<String> mFilesFound = new List<string>();
+            List<String> mFilesDownloaded = new List<string>();
+            //combine all search criteria
+            List<ACW.SrchCond> mSrchConds = CreateSrchConds(conn, SearchCriteria, MatchAllCriteria);
+            List<ACW.File> totalResults = new List<ACW.File>();
+            string bookmark = string.Empty;
+            ACW.SrchStatus status = null;
+
+            while (status == null || totalResults.Count < status.TotalHits)
+            {
+                ACW.File[] mSrchResults = conn.WebServiceManager.DocumentService.FindFilesBySearchConditions(
+                    mSrchConds.ToArray(), null, mFolders.ToArray(), true, true, ref bookmark, out status);
+                if (mSrchResults != null) totalResults.AddRange(mSrchResults);
+                else break;
+            }
+            //if results not empty
+            if (totalResults.Count >= 1)
+            {
+                ACW.File wsFile = totalResults.First<ACW.File>();
+                VDF.Vault.Currency.Entities.FileIteration mFileIt = new VDF.Vault.Currency.Entities.FileIteration(conn, (wsFile));
+
+                //build download options including DefaultAcquisitionOptions
+                VDF.Vault.Settings.AcquireFilesSettings settings = CreateAcquireSettings(conn, false);
+                settings.AddFileToAcquire(mFileIt, settings.DefaultAcquisitionOption);
+
+                //download
+                VDF.Vault.Results.AcquireFilesResults results = conn.FileManager.AcquireFiles(settings);
+
+                if (CheckOut)
+                {
+                    //define checkout options and checkout
+                    settings = CreateAcquireSettings(conn, true);
+                    settings.AddFileToAcquire(mFileIt, settings.DefaultAcquisitionOption);
+                    results = conn.FileManager.AcquireFiles(settings);
+                }
+
+                //refine and validate output
+                if (results != null)
+                {
+                    try
+                    {
+                        if (results.FileResults.Any(n => n.File.EntityName == mFileIt.EntityName))
+                        {
+                            mFilesDownloaded.Add(conn.WorkingFoldersManager.GetPathOfFileInWorkingFolder(mFileIt).FullPath.ToString());
+                        }
+
+                        return mFilesDownloaded[0];
+
+                    }
+                    catch (Exception)
+                    {
+                        return "CheckOut failed";
+                    }
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                return "File not found";
+            }
+        }
+
+        /// <summary>
+        /// Get the local file's status in Vault.
+        /// Validate the ErrorState = "None" to get all return values for vaulted files.
+        /// Validate the ErrorState = (LocalFileNotFoundVaultFileNotFound|VaultFileNotFound) to validate files before first time check-in
+        /// </summary>
+        /// <param name="conn">Current Vault Connection</param>
+        /// <param name="LocalFullFileName">Local path and file name, e.g., ThisDoc.FullFileName</param>
+        /// <returns>ErrorState only if file is not added to Vault yet; otherwise Vault's default file status enumerations of CheckOutState, ConsumableState, ErrorState, LocalEditsState, LockState, RevisionState, VersionState</returns>
+        public Dictionary<string, string> GetVaultFileStatus(VDF.Vault.Currency.Connections.Connection conn, string LocalFullFileName)
+        {
+            Dictionary<string, string> keyValues = new Dictionary<string, string>();
+
+            //convert the local path to the corresponding Vault path; note - the file might be a virtual (to be created in future) one
+            System.IO.FileInfo fileInfo = new System.IO.FileInfo(LocalFullFileName);
+            string mVltFullFileName = null;
+            string mWf = conn.WorkingFoldersManager.GetWorkingFolder("$/").FullPath;
+            if (LocalFullFileName.Contains(mWf))
+                mVltFullFileName = LocalFullFileName.Replace(mWf, "$/");
+            mVltFullFileName = mVltFullFileName.Replace("\\", "/");
+
+            //get the file object consuming the Vault Path; if the file does not exist return the VaultFileNotFound status information; it is a custom ErrorState info
+            Autodesk.Connectivity.WebServicesTools.WebServiceManager mWsMgr = conn.WebServiceManager;
+            ACW.File mFile = mWsMgr.DocumentService.FindLatestFilesByPaths(new string[] { mVltFullFileName }).FirstOrDefault();
+
+            if (mFile.Id == -1) // file not found locally and in Vault
+            {
+                if (!fileInfo.Exists)
+                {
+                    keyValues.Add("ErrorState", "LocalFileNotFoundVaultFileNotFound");
+                }
+                else
+                {
+                    keyValues.Add("ErrorState", "VaultFileNotFound");
+                }
+                return keyValues;
+            }
+
+            VDF.Vault.Currency.Entities.FileIteration mFileIteration = new VDF.Vault.Currency.Entities.FileIteration(conn, mFile);
+
+            PropertyDefinitionDictionary mProps = conn.PropertyManager.GetPropertyDefinitions(VDF.Vault.Currency.Entities.EntityClassIds.Files, null, PropertyDefinitionFilter.IncludeAll);
+
+            PropertyDefinition mVaultStatus = mProps[PropertyDefinitionIds.Client.VaultStatus];
+
+            EntityStatusImageInfo status = conn.PropertyManager.GetPropertyValue(mFileIteration, mVaultStatus, null) as EntityStatusImageInfo;
+            keyValues.Add("FileName", mFile.Name);
+            keyValues.Add("FullFileName", (LocalFullFileName));
+            keyValues.Add("CheckOut", mFile.CheckedOut.ToString());
+            keyValues.Add("EditedBy", mFile.CreateUserName);
+            keyValues.Add("CheckOutPC", mFile.CkOutMach);
+            keyValues.Add("CheckOutState", status.Status.CheckoutState.ToString());
+            keyValues.Add("ConsumableState", status.Status.ConsumableState.ToString());
+            keyValues.Add("ErrorState", status.Status.ErrorState.ToString());
+            keyValues.Add("LocalEditsState", status.Status.LocalEditsState.ToString());
+            keyValues.Add("LockState", status.Status.LockState.ToString());
+            keyValues.Add("RevisionState", status.Status.RevisionState.ToString());
+            keyValues.Add("VersionState", status.Status.VersionState.ToString());
+
+            return keyValues;
+        }
     }
 
 
