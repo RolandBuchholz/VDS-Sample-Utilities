@@ -214,6 +214,17 @@ namespace VdsSampleUtilities
             }
         }
 
+        private bool IsCadFile(System.IO.FileInfo FileInfo)
+        {
+            //don't add Inventor files except single part files
+            List<string> mFileExtensions = new List<string> { ".iam", "ipn", ".idw", ".dwg" };
+            if (mFileExtensions.Any(n => FileInfo.Extension == n))
+            {
+                return true;
+            }
+            return false;
+        }
+
         /// <summary>
         /// Update file properties
         /// </summary>
@@ -423,6 +434,77 @@ namespace VdsSampleUtilities
             {
                 return "File not found";
             }
+        }
+
+
+        /// <summary>
+        /// Adds local file to Vault.
+        /// </summary>
+        /// <param name="conn">Current Vault Connection</param>
+        /// <param name="FullFileName">File path and name of file to add in local working folder.</param>
+        /// <param name="VaultFolderPath">Full path in Vault, e.g. "$/Designs/P-00000</param>
+        /// <param name="UpdateExisting">Creates new file version if existing file is available for check-out.</param>
+        /// <returns>Returns True/False on success/failure; returns false if the file exists and UpdateExisting = false. Returns false for IAM, IPN, IDW/DWG</returns>
+        public bool AddFile(VDF.Vault.Currency.Connections.Connection conn, string FullFileName, string VaultFolderPath, bool UpdateExisting = true)
+        {
+            //exclude CAD files with references
+            System.IO.FileInfo mLocalFileInfo = new System.IO.FileInfo(FullFileName);
+            if (IsCadFile(mLocalFileInfo))
+            {
+                return false;
+            }
+
+            Autodesk.Connectivity.WebServicesTools.WebServiceManager mWsMgr = conn.WebServiceManager;
+
+            ACW.Folder mFolder = mWsMgr.DocumentService.FindFoldersByPaths(new string[] { VaultFolderPath }).FirstOrDefault();
+            if (mFolder.Id == -1)
+            {
+                return false;
+            }
+            string vaultFilePath = System.IO.Path.Combine(mFolder.FullName, mLocalFileInfo.Name).Replace("\\", "/");
+
+            ACW.File wsFile = mWsMgr.DocumentService.FindLatestFilesByPaths(new string[] { vaultFilePath }).First();
+
+            VDF.Currency.FilePathAbsolute vdfPath = new VDF.Currency.FilePathAbsolute(mLocalFileInfo.FullName);
+            VDF.Vault.Currency.Entities.FileIteration vdfFile = null;
+            VDF.Vault.Currency.Entities.FileIteration addedFile = null;
+            VDF.Vault.Currency.Entities.FileIteration mUploadedFile = null;
+            if (wsFile == null || wsFile.Id < 0)
+            {
+                // add new file to Vault
+                var folderEntity = new Autodesk.DataManagement.Client.Framework.Vault.Currency.Entities.Folder(conn, mFolder);
+                try
+                {
+                    addedFile = conn.FileManager.AddFile(folderEntity, "automatisch generierte Datei", null, null, ACW.FileClassification.None, false, vdfPath);
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if (UpdateExisting == true)
+                {
+                    // checkin new file version
+                    VDF.Vault.Settings.AcquireFilesSettings aqSettings = new VDF.Vault.Settings.AcquireFilesSettings(conn)
+                    {
+                        DefaultAcquisitionOption = VDF.Vault.Settings.AcquireFilesSettings.AcquisitionOption.Checkout
+                    };
+                    vdfFile = new VDF.Vault.Currency.Entities.FileIteration(conn, wsFile);
+                    aqSettings.AddEntityToAcquire(vdfFile);
+                    var results = conn.FileManager.AcquireFiles(aqSettings);
+                    try
+                    {
+                        mUploadedFile = conn.FileManager.CheckinFile(results.FileResults.First().File, "auto-updated Datei", false, null, null, false, null, ACW.FileClassification.None, false, vdfPath);
+                    }
+                    catch (Exception)
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
 
         /// <summary>
