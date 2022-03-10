@@ -251,6 +251,43 @@ namespace VdsSampleUtilities
         }
 
         /// <summary>
+        /// Update file properties
+        /// </summary>
+        /// <param name="conn"></param>
+        /// <param name="mFile"></param>
+        /// <param name="mProps">Dictionary(string,string)</param>
+        /// <returns>True if updated successfully</returns>
+        public bool mUpdateFileProperties2(VDF.Vault.Currency.Connections.Connection conn,
+            Autodesk.Connectivity.WebServices.File mFile, Dictionary<string, string> mProps)
+        {
+            var mPropDictonary = new Dictionary<Autodesk.Connectivity.WebServices.PropDef, object>();
+
+            var propDefs = conn.WebServiceManager.PropertyService.GetPropertyDefinitionsByEntityClassId("FILE");
+
+            if (propDefs.Length != 0)
+            {
+                foreach (KeyValuePair<string, string> prop in mProps)
+                {
+                    mPropDictonary.Add(propDefs.First(x => x.DispName == prop.Key), prop.Value);
+                }
+
+                try
+                {
+                    var UpdateFilePropertiesResulst = mUpdateFileProperties(conn,mFile,mPropDictonary);
+                    return UpdateFilePropertiesResulst;
+                }
+                catch 
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Downloads Vault file using full file path, e.g. "$/Designs/Base.ipt". Returns full file name in local working folder (download enforces override, if local file exists),
         /// returns "FileNotFound if file does not exist at indicated location.
         /// Preset Options: Download Children (recursively) = Enabled, Enforce Overwrite = True
@@ -475,9 +512,9 @@ namespace VdsSampleUtilities
                 var folderEntity = new Autodesk.DataManagement.Client.Framework.Vault.Currency.Entities.Folder(conn, mFolder);
                 try
                 {
-                    addedFile = conn.FileManager.AddFile(folderEntity, "automatisch generierte Datei", null, null, ACW.FileClassification.None, false, vdfPath);
+                    addedFile = conn.FileManager.AddFile(folderEntity, "generated file", null, null, ACW.FileClassification.None, false, vdfPath);
                 }
-                catch
+                catch 
                 {
                     return false;
                 }
@@ -496,7 +533,7 @@ namespace VdsSampleUtilities
                     var results = conn.FileManager.AcquireFiles(aqSettings);
                     try
                     {
-                        mUploadedFile = conn.FileManager.CheckinFile(results.FileResults.First().File, "auto-updated Datei", false, null, null, false, null, ACW.FileClassification.None, false, vdfPath);
+                        mUploadedFile = conn.FileManager.CheckinFile(results.FileResults.First().File, "auto-updated file", false, null, null, false, null, ACW.FileClassification.None, false, vdfPath);
                     }
                     catch (Exception)
                     {
