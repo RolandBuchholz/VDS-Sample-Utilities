@@ -1,20 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Autodesk.Connectivity.WebServices;
+﻿using Autodesk.Connectivity.WebServices;
 using Autodesk.Connectivity.WebServicesTools;
-using Autodesk.DataManagement.Client.Framework.Vault.Currency.Entities;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections;
+using Autodesk.DataManagement.Client.Framework.Vault.Currency.Entities;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.PersistentId;
 using Autodesk.DataManagement.Client.Framework.Vault.Currency.Properties;
-using ACW = Autodesk.Connectivity.WebServices;
-using VDF = Autodesk.DataManagement.Client.Framework;
-using ACET = Autodesk.Connectivity.Explorer.ExtensibilityTools;
 using Inventor;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using ACET = Autodesk.Connectivity.Explorer.ExtensibilityTools;
 using AcInterop = Autodesk.AutoCAD.Interop;
 using AcInteropCom = Autodesk.AutoCAD.Interop.Common;
+using ACW = Autodesk.Connectivity.WebServices;
+using VDF = Autodesk.DataManagement.Client.Framework;
 
 namespace VdsSampleUtilities
 {
@@ -131,7 +129,7 @@ namespace VdsSampleUtilities
             }
         }
 
-        
+
         /// <summary>
         /// LinkManager.GetLinkedChildren has an override list; the input is of type IEntity. 
         /// This wrapper allows to input commonly known object types, like Ids and entity names instead.
@@ -273,10 +271,10 @@ namespace VdsSampleUtilities
 
                 try
                 {
-                    var UpdateFilePropertiesResulst = mUpdateFileProperties(conn,mFile,mPropDictonary);
+                    var UpdateFilePropertiesResulst = mUpdateFileProperties(conn, mFile, mPropDictonary);
                     return UpdateFilePropertiesResulst;
                 }
-                catch 
+                catch
                 {
                     return false;
                 }
@@ -514,7 +512,7 @@ namespace VdsSampleUtilities
                 {
                     addedFile = conn.FileManager.AddFile(folderEntity, "generated file", null, null, ACW.FileClassification.None, false, vdfPath);
                 }
-                catch 
+                catch
                 {
                     return false;
                 }
@@ -757,7 +755,7 @@ namespace VdsSampleUtilities
             {
                 return null;
             }
-                
+
         }
 
 
@@ -831,7 +829,7 @@ namespace VdsSampleUtilities
                 {
                     //FDS Type
                     mFdsKeys.Add("FdsType", "FDS-Layout");
-                   
+
                     //FDS Property Set exists for syncronized layouts
                     foreach (PropertySet m_PropSet in m_Doc.PropertySets)
                     {
